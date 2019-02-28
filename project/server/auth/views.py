@@ -1,6 +1,4 @@
 # project/server/auth/views.py
-
-
 from flask import Blueprint, request, make_response, jsonify
 from flask.views import MethodView
 
@@ -19,11 +17,11 @@ class RegisterAPI(MethodView):
         # get the post data
         post_data = request.get_json()
         # check if user already exists
-        user = User.query.filter_by(email=post_data.get('email')).first()
+        user = User.query.filter_by(login=post_data.get('login')).first()
         if not user:
             try:
                 user = User(
-                    email=post_data.get('email'),
+                    login=post_data.get('login'),
                     password=post_data.get('password')
                 )
                 # insert the user
@@ -40,7 +38,7 @@ class RegisterAPI(MethodView):
             except Exception as e:
                 responseObject = {
                     'status': 'fail',
-                    'message': 'Some error occurred. Please try again.'
+                    'message': 'Some error occurred. Please try again. {}'.format(e)
                 }
                 return make_response(jsonify(responseObject)), 401
         else:
@@ -61,7 +59,7 @@ class LoginAPI(MethodView):
         try:
             # fetch the user data
             user = User.query.filter_by(
-                email=post_data.get('email')
+                login=post_data.get('login')
             ).first()
             if user and bcrypt.check_password_hash(
                 user.password, post_data.get('password')
@@ -115,7 +113,7 @@ class UserAPI(MethodView):
                     'status': 'success',
                     'data': {
                         'user_id': user.id,
-                        'email': user.email,
+                        'login': user.login,
                         'admin': user.admin,
                         'registered_on': user.registered_on
                     }
