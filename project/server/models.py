@@ -36,10 +36,25 @@ class User(db.Model):
         except Exception as e:
             return e
 
-    @staticmethod
-    def decode_auth_token(auth_token):
+    def encode_refresh_token(self, user_id, user_login):
         try:
-            payload = jwt.decode(auth_token, app.config.get('SECRET_KEY'))
+            payload = {
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(days=0, seconds=app.config.get('TTL')),
+                'iat': datetime.datetime.utcnow(),
+                'sub': str(user_id) + '@' + user_login
+            }
+            return jwt.encode(
+                payload,
+                app.config.get('SECRET_KEY'),
+                algorithm='HS256'
+            )
+        except Exception as e:
+            return e
+
+    @staticmethod
+    def decode_token(token):
+        try:
+            payload = jwt.decode(token, app.config.get('SECRET_KEY'))
             return payload['sub']
         except jwt.ExpiredSignatureError:
             return 'Signature expired'

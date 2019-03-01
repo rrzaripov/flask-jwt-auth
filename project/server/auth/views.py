@@ -50,7 +50,7 @@ class LoginAPI(MethodView):
             valid = bcrypt.check_password_hash(user.password, post_data.get('password'))
             if user and valid:
                 auth_token = user.encode_auth_token(user.id)
-                refresh_token = user.encode_auth_token(user.id)
+                refresh_token = user.encode_refresh_token(user.id, user.login)
                 if auth_token:
                     response_object = {
                         'status': 'success',
@@ -89,11 +89,12 @@ class RefreshAPI(MethodView):
         else:
             refresh_token = ''
         if refresh_token:
-            resp = User.decode_auth_token(refresh_token)
+            resp = User.decode_token(refresh_token)
             if not isinstance(resp, str):
-                user = User.query.filter_by(id=resp).first()
+                user, login = resp.split('@')
+                user = User.query.filter_by(id=int(user)).first()
                 auth_token = user.encode_auth_token(user.id)
-                refresh_token = user.encode_auth_token(user.id)
+                refresh_token = user.encode_refresh_token(user.id, user.login)
                 response_object = {
                     'status': 'success',
                     'auth_token': auth_token.decode(),
@@ -129,7 +130,7 @@ class UserAPI(MethodView):
         else:
             auth_token = ''
         if auth_token:
-            resp = User.decode_auth_token(auth_token)
+            resp = User.decode_token(auth_token)
             if not isinstance(resp, str):
                 user = User.query.filter_by(id=resp).first()
                 response_object = {
