@@ -3,12 +3,13 @@ from flask import Blueprint, request, make_response, jsonify
 from flask.views import MethodView
 
 from project.server import bcrypt, db
-from project.server.models import User, BlacklistToken
+from project.server.models import User
 
 auth_blueprint = Blueprint('auth', __name__)
 
 
 class RegisterAPI(MethodView):
+    # Метод для добавления пользователя с логином и паролем
     def post(self):
         post_data = request.get_json()
         user = User.query.filter_by(login=post_data.get('login')).first()
@@ -20,13 +21,9 @@ class RegisterAPI(MethodView):
                 )
                 db.session.add(user)
                 db.session.commit()
-                auth_token = user.encode_auth_token(user.id)
-                refresh_token = user.encode_auth_token(auth_token)
                 response_object = {
                     'status': 'success',
                     'message': 'Successfully registered.',
-                    'auth_token': auth_token.decode(),
-                    'refresh_token': refresh_token.decode()
                 }
                 response = make_response(jsonify(response_object)), 201
                 return response
@@ -45,6 +42,7 @@ class RegisterAPI(MethodView):
 
 
 class LoginAPI(MethodView):
+    # Аутентификация с логином и паролем
     def post(self):
         post_data = request.get_json()
         try:
@@ -52,11 +50,13 @@ class LoginAPI(MethodView):
             valid = bcrypt.check_password_hash(user.password, post_data.get('password'))
             if user and valid:
                 auth_token = user.encode_auth_token(user.id)
+                refresh_token = user.encode_auth_token(user.id)
                 if auth_token:
                     response_object = {
                         'status': 'success',
                         'message': 'Successfully logged in.',
-                        'auth_token': auth_token.decode()
+                        'auth_token': auth_token.decode(),
+                        'refresh_token': refresh_token.decode()
                     }
                     return make_response(jsonify(response_object)), 200
             else:
@@ -73,7 +73,48 @@ class LoginAPI(MethodView):
             return make_response(jsonify(response_object)), 500
 
 
+class RefreshAPI(MethodView):
+    # Получение нового токена при помощи refresh-токена
+    def post(self):
+        refresh_header = request.headers.get('Authorization')
+        if refresh_header:
+            try:
+                refresh_token = refresh_header.split(" ")[1]
+            except IndexError:
+                response_object = {
+                    'status': 'error',
+                    'message': 'Bearer token malformed.'
+                }
+                return make_response(jsonify(response_object)), 401
+        else:
+            refresh_token = ''
+        if refresh_token:
+            resp = User.decode_auth_token(refresh_token)
+            if not isinstance(resp, str):
+                user = User.query.filter_by(id=resp).first()
+                auth_token = user.encode_auth_token(user.id)
+                refresh_token = user.encode_auth_token(user.id)
+                response_object = {
+                    'status': 'success',
+                    'auth_token': auth_token.decode(),
+                    'refresh_token': refresh_token.decode()
+                }
+                return make_response(jsonify(response_object)), 200
+            response_object = {
+                'status': 'error',
+                'message': resp
+            }
+            return make_response(jsonify(response_object)), 401
+        else:
+            response_object = {
+                'status': 'error',
+                'message': 'Authentication failed.'
+            }
+            return make_response(jsonify(response_object)), 401
+
+
 class UserAPI(MethodView):
+    # Метод для проверки корректности авторизации
     def get(self):
         auth_header = request.headers.get('Authorization')
         if auth_header:
@@ -112,48 +153,11 @@ class UserAPI(MethodView):
             return make_response(jsonify(response_object)), 401
 
 
-class LogoutAPI(MethodView):
-    def post(self):
-        auth_header = request.headers.get('Authorization')
-        if auth_header:
-            auth_token = auth_header.split(" ")[1]
-        else:
-            auth_token = ''
-        if auth_token:
-            resp = User.decode_auth_token(auth_token)
-            if not isinstance(resp, str):
-                blacklist_token = BlacklistToken(token=auth_token)
-                try:
-                    db.session.add(blacklist_token)
-                    db.session.commit()
-                    response_object = {
-                        'status': 'success',
-                        'message': 'Successfully logged out.'
-                    }
-                    return make_response(jsonify(response_object)), 200
-                except Exception as e:
-                    response_object = {
-                        'status': 'error',
-                        'message': e
-                    }
-                    return make_response(jsonify(response_object)), 200
-            else:
-                response_object = {
-                    'status': 'error',
-                    'message': resp
-                }
-                return make_response(jsonify(response_object)), 401
-        else:
-            response_object = {
-                'status': 'error',
-                'message': 'Authentication failed'
-            }
-            return make_response(jsonify(response_object)), 403
-
 registration_view = RegisterAPI.as_view('register_api')
 login_view = LoginAPI.as_view('login_api')
 user_view = UserAPI.as_view('user_api')
-logout_view = LogoutAPI.as_view('logout_api')
+refresh_view = RefreshAPI.as_view('refresh_api')
+
 
 auth_blueprint.add_url_rule(
     '/auth/register',
@@ -171,7 +175,7 @@ auth_blueprint.add_url_rule(
     methods=['GET']
 )
 auth_blueprint.add_url_rule(
-    '/auth/logout',
-    view_func=logout_view,
+    '/auth/refresh',
+    view_func=refresh_view,
     methods=['POST']
 )
