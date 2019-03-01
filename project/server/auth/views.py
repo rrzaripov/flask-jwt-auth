@@ -91,8 +91,8 @@ class RefreshAPI(MethodView):
         if refresh_token:
             resp = User.decode_token(refresh_token)
             if not isinstance(resp, str):
-                user, login = resp.split('@')
-                user = User.query.filter_by(id=int(user)).first()
+                user, login = resp
+                user = User.query.filter_by(id=user).first()
                 auth_token = user.encode_auth_token(user.id)
                 refresh_token = user.encode_refresh_token(user.id, user.login)
                 response_object = {

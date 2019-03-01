@@ -41,7 +41,7 @@ class User(db.Model):
             payload = {
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=0, seconds=app.config.get('TTL')),
                 'iat': datetime.datetime.utcnow(),
-                'sub': str(user_id) + '@' + user_login
+                'sub': [user_id, user_login]
             }
             return jwt.encode(
                 payload,
